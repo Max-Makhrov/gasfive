@@ -2,6 +2,7 @@ import { getAllFitClustersInfo_ } from "./columntypecluster/getallfitclusters";
 import { getValuesheaderHeadersRangeGrids_ } from "./columntypecluster/grids/headergrids";
 import { getValuesClustersRangeGrids_ } from "./columntypecluster/grids/clustergrids";
 import { getRangeGridByRangeA1_ } from "@/rangers/converters/grid_to_range";
+import { getSchemaDimensions_ } from "./dimensions";
 
 /** @typedef {import("@/talbler").RangeValues} RangeValues */
 /** @typedef {import("@/typers/gettype").BasicDataType} BasicDataType  */
@@ -17,6 +18,7 @@ import { getRangeGridByRangeA1_ } from "@/rangers/converters/grid_to_range";
  * @prop {Number} row_data_starts
  * @prop {Number} row_data_ends
  * @prop {Number} row_headers
+ * @prop {SchemaDimensions} [dimensions]
  */
 
 /**
@@ -36,6 +38,12 @@ import { getRangeGridByRangeA1_ } from "@/rangers/converters/grid_to_range";
  * @prop {number} [precision] - The total number of digits (for numeric types).
  * @prop {number} [scale] - The number of digits after the decimal point (for numeric types).
  * @prop {number} column_index
+ */
+
+/**
+ * @typedef {Object} SchemaDimensions
+ * @prop {Number} num_rows
+ * @prop {Number} num_columns
  */
 
 /**
@@ -96,7 +104,7 @@ export function getTheFirstSheetSchema_(values, rowIndex = 0, colIndex = 0) {
     });
   });
 
-  return {
+  const schema = {
     data_coordinates: dataCoordinates,
     header_coordinates: headerCoordinates,
     fields,
@@ -106,4 +114,8 @@ export function getTheFirstSheetSchema_(values, rowIndex = 0, colIndex = 0) {
     skipped_column_indexes: fitResults.missing_columns,
     skipped_row_indexes: fitResults.missing_rows,
   };
+
+  schema.dimensions = getSchemaDimensions_(schema);
+
+  return schema;
 }

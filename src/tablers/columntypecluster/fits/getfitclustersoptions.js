@@ -11,6 +11,7 @@ import { getColumnValuesClusterPossibleRowsStart_ } from "./getclusterpossiblero
  * @prop {Number} max_skipped_columns - max number of skipped columns between clusters
  * @prop {Number} max_values_crop - max average rounded values allowed to crop after other cluster
  * @prop {Number} max_header_lenght - 300 https://cloud.google.com/bigquery/docs/schemas
+ * @prop {Number} max_gap_to_merge_clusters
  */
 
 /**
@@ -26,13 +27,14 @@ import { getColumnValuesClusterPossibleRowsStart_ } from "./getclusterpossiblero
 /**
  * @returns {FitColumnValuesClustersOptions}
  */
-function getFitValuesClustersOptions_() {
+export function getFitValuesClustersOptions_() {
   return {
     max_row_start_offset: 2,
     max_row_start_string_rows_percent: 0.3,
     max_skipped_columns: 1,
     max_values_crop: 1,
     max_header_lenght: 300,
+    max_gap_to_merge_clusters: 1,
   };
 }
 

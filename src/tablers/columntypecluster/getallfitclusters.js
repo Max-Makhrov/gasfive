@@ -5,7 +5,10 @@ import { getColumnValueClusterHeaderIslands_ } from "@/tablers/columntypecluster
 import { getAllMatchedColumnValueClutersHeaders_ } from "@/tablers/columntypecluster/fits/getmatchedclustersheaders";
 import { reduceFittingClustersByMaxColumnGap_ } from "@/tablers/columntypecluster/fits/notfitclustersbycolumngaps";
 import { getColumnValueClustersRowFit_ } from "@/tablers/columntypecluster/fits/getclustersrowfit";
-import { getInitialFitColumnValuesClustersInfo_ } from "@/tablers/columntypecluster/fits/getfitclustersoptions";
+import {
+  getFitValuesClustersOptions_,
+  getInitialFitColumnValuesClustersInfo_,
+} from "@/tablers/columntypecluster/fits/getfitclustersoptions";
 import { findNextBestFitValuesCluster_ } from "@/tablers/columntypecluster/getnextbestcluster";
 import { getAllValuesClusters_ } from "@/tablers/columntypecluster/getvaluesclusters";
 import { getValuesClustersFirstDataRow_ } from "./clusterstoschema/clustersrowstarts";
@@ -14,6 +17,7 @@ import { getCommonColumnValuesClustersMissingColumns_ } from "./fits/commonmissi
 import { getDataValuesClustersMissingColumns_ } from "./fits/missingcolumns";
 import { getRichColumnValuesClustersHeaders_ } from "./fits/richheaders";
 import { getDedupedColumnsValuesClusterFullInfo_ } from "./fits/dedupeclusters";
+import { mergeSameTypeTableClusters_ } from "./mergesametypeclusters";
 
 /** @typedef {import ("@/tablers/columntypecluster/cluster").SheetsValuesColumnCluster} SheetsValuesColumnCluster */
 /** @typedef {import("@/talbler").RangeValues} RangeValues */
@@ -35,7 +39,12 @@ import { getDedupedColumnsValuesClusterFullInfo_ } from "./fits/dedupeclusters";
  * @returns {BestFitClustersInfo}
  */
 export function getAllFitClustersInfo_(values) {
-  const clustersMap = getAllValuesClusters_(values);
+  const preClustersMap = getAllValuesClusters_(values);
+  const options = getFitValuesClustersOptions_();
+  const clustersMap = mergeSameTypeTableClusters_(
+    preClustersMap,
+    options.max_gap_to_merge_clusters
+  );
   const bestFit1 = findNextBestFitValuesCluster_(clustersMap, null);
   const bestCluster1 = bestFit1.best_cluster;
   const info = getInitialFitColumnValuesClustersInfo_(

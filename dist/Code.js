@@ -612,6 +612,16 @@ var __assign = function() {
     return __assign.apply(this, arguments);
 };
 
+function __spreadArray(to, from, pack) {
+    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
+        if (ar || !(i in from)) {
+            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
+            ar[i] = from[i];
+        }
+    }
+    return to.concat(ar || Array.prototype.slice.call(from));
+}
+
 typeof SuppressedError === "function" ? SuppressedError : function (error, suppressed, message) {
     var e = new Error(message);
     return e.name = "SuppressedError", e.error = error, e.suppressed = suppressed, e;
@@ -2537,7 +2547,7 @@ function getBigQueryFieldNamingRules_() {
  */
 /**
  * Checks all rules
- * вљ пёЏRules order matters as some rules modofy value
+ * âš ï¸Rules order matters as some rules modofy value
  * @param {String} value
  * @param {ValidatedStringValueOptions} [options]
  *
@@ -2970,6 +2980,7 @@ function getColumnValueClustersRowFit_(info) {
  * @prop {Number} max_skipped_columns - max number of skipped columns between clusters
  * @prop {Number} max_values_crop - max average rounded values allowed to crop after other cluster
  * @prop {Number} max_header_lenght - 300 https://cloud.google.com/bigquery/docs/schemas
+ * @prop {Number} max_gap_to_merge_clusters
  */
 /**
  * @typedef {Object} FitColumnValuesClustersInfo
@@ -2990,6 +3001,7 @@ function getFitValuesClustersOptions_() {
         max_skipped_columns: 1,
         max_values_crop: 1,
         max_header_lenght: 300,
+        max_gap_to_merge_clusters: 1,
     };
 }
 /**
@@ -4089,6 +4101,112 @@ function getDedupedColumnsValuesClusterFullInfo_(bestFullInfo) {
     return _res_(dedupedClusters, finalHeaders, numFinalRowsStart);
 }
 
+/** @typedef {import ("./cluster").SheetsValuesColumnCluster} SheetsValuesColumnCluster */
+
+
+/**
+ * param {SheetsValuesColumnCluster[][]} clusters
+ * @param {Number} maxGap
+ *
+ * @returns {SheetsValuesColumnCluster[][]}
+ */
+function mergeSameTypeTableClusters_(clusters, maxGap) {
+    /** @type {SheetsValuesColumnCluster[][]} */
+    var result = clusters.map(function (c) {
+        return _mergeTablerClusterGroupsIfPossible_(c, maxGap);
+    });
+    return result;
+}
+/**
+ *
+ * @param {SheetsValuesColumnCluster[]} clusters
+ * @param {Number} maxGap
+ *
+ * @returns {SheetsValuesColumnCluster[]}
+ */
+function _mergeTablerClusterGroupsIfPossible_(clusters, maxGap) {
+    /** @type {SheetsValuesColumnCluster[]}  */
+    var newClusters = __spreadArray([], clusters, true);
+    var i = 0;
+    while (i < newClusters.length - 1) {
+        var mergeResult = _merge2SameTypeTableClusters_(newClusters[i], newClusters[i + 1], maxGap);
+        if (mergeResult.can_merge) {
+            // replace two clusters with their merged version and continue scanning the array again
+            newClusters.splice(i, 2, mergeResult.merged);
+            i = 0;
+        }
+        else {
+            i++; // move to next pair
+        }
+    }
+    return newClusters;
+}
+/**
+ * @typedef {Object} _Merge2TypesClusterRerult
+ * @prop {Boolean} can_merge
+ * @prop {SheetsValuesColumnCluster} [merged]
+ */
+/**
+ * @param {SheetsValuesColumnCluster} cluster1
+ * @param {SheetsValuesColumnCluster} cluster2
+ * @param {Number} [maxGapBetweenSameTypeClusters]
+ *
+ * @returns {_Merge2TypesClusterRerult}
+ */
+function _merge2SameTypeTableClusters_(cluster1, cluster2, maxGapBetweenSameTypeClusters) {
+    // check if logically 2 clusters can be merged
+    // max 1 gap between them
+    var MAX_GAP_BETWEEN_MERGED_CLUSTERS = 1;
+    maxGapBetweenSameTypeClusters =
+        maxGapBetweenSameTypeClusters || MAX_GAP_BETWEEN_MERGED_CLUSTERS;
+    var gap = 0;
+    if (cluster2.start_index > cluster1.start_index) {
+        gap = cluster2.start_index - cluster1.end_index - 1;
+    }
+    else {
+        gap = cluster1.start_index - cluster2.end_index - 1;
+    }
+    if (gap > maxGapBetweenSameTypeClusters) {
+        return {
+            can_merge: false,
+        };
+    }
+    var canConvertByTupe = _canMerge2ClustersByType_(cluster1, cluster2);
+    if (!canConvertByTupe) {
+        return {
+            can_merge: false,
+        };
+    }
+    var merged = mergeColumnValuesClusters_([cluster1, cluster2]);
+    return {
+        can_merge: true,
+        merged: merged,
+    };
+}
+/**
+ * @param {SheetsValuesColumnCluster} cluster1
+ * @param {SheetsValuesColumnCluster} cluster2
+ * @returns {Boolean}
+ */
+function _canMerge2ClustersByType_(cluster1, cluster2) {
+    var commonType1 = _getTablerClusterTypeBestDataType_(cluster1);
+    var commonType2 = _getTablerClusterTypeBestDataType_(cluster2);
+    if (commonType1 !== commonType2)
+        return false;
+    return true;
+}
+/**
+ * @param {SheetsValuesColumnCluster} cluster
+ * @returns {BasicDataType}
+ */
+function _getTablerClusterTypeBestDataType_(cluster) {
+    if (cluster.type !== "string")
+        return cluster.type;
+    if (!cluster.string_like_type)
+        return cluster.type;
+    return cluster.string_like_type;
+}
+
 /** @typedef {import ("@/tablers/columntypecluster/cluster").SheetsValuesColumnCluster} SheetsValuesColumnCluster */
 
 
@@ -4107,7 +4225,9 @@ function getDedupedColumnsValuesClusterFullInfo_(bestFullInfo) {
  * @returns {BestFitClustersInfo}
  */
 function getAllFitClustersInfo_(values) {
-    var clustersMap = getAllValuesClusters_(values);
+    var preClustersMap = getAllValuesClusters_(values);
+    var options = getFitValuesClustersOptions_();
+    var clustersMap = mergeSameTypeTableClusters_(preClustersMap, options.max_gap_to_merge_clusters);
     var bestFit1 = findNextBestFitValuesCluster_(clustersMap, null);
     var bestCluster1 = bestFit1.best_cluster;
     var info = getInitialFitColumnValuesClustersInfo_(bestCluster1, values, clustersMap);
@@ -4375,6 +4495,24 @@ function getRangeGridByRangeA1_(grid) {
     return a1Notation;
 }
 
+/**
+ * @typedef {import("./getSchema").SheetTableSchema} SheetTableSchema
+ * @typedef {import("./getSchema").SchemaDimensions} SchemaDimensions
+ */
+/**
+ * @param {SheetTableSchema} schema
+ * @returns {SchemaDimensions}
+ */
+function getSchemaDimensions_(schema) {
+    var missingRowsCount = schema.skipped_row_indexes.length;
+    var totalRowsCount = schema.row_data_ends - schema.row_data_starts + 1;
+    var columnsCount = schema.fields.length;
+    return {
+        num_columns: columnsCount,
+        num_rows: totalRowsCount - missingRowsCount,
+    };
+}
+
 
 
 /** @typedef {import ("@/rangers/grid").RangeGrid} RangeGrid */
@@ -4388,6 +4526,7 @@ function getRangeGridByRangeA1_(grid) {
  * @prop {Number} row_data_starts
  * @prop {Number} row_data_ends
  * @prop {Number} row_headers
+ * @prop {SchemaDimensions} [dimensions]
  */
 /**
  * @typedef {Object} SheetRangeGroupCoordinates
@@ -4405,6 +4544,11 @@ function getRangeGridByRangeA1_(grid) {
  * @prop {number} [precision] - The total number of digits (for numeric types).
  * @prop {number} [scale] - The number of digits after the decimal point (for numeric types).
  * @prop {number} column_index
+ */
+/**
+ * @typedef {Object} SchemaDimensions
+ * @prop {Number} num_rows
+ * @prop {Number} num_columns
  */
 /**
  * @param {RangeValues} values
@@ -4461,7 +4605,7 @@ function getTheFirstSheetSchema_(values, rowIndex, colIndex) {
             scale: c.max_scale,
         });
     });
-    return {
+    var schema = {
         data_coordinates: dataCoordinates,
         header_coordinates: headerCoordinates,
         fields: fields,
@@ -4471,6 +4615,8 @@ function getTheFirstSheetSchema_(values, rowIndex, colIndex) {
         skipped_column_indexes: fitResults.missing_columns,
         skipped_row_indexes: fitResults.missing_rows,
     };
+    schema.dimensions = getSchemaDimensions_(schema);
+    return schema;
 }
 
 
