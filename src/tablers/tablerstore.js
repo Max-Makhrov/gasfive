@@ -1,10 +1,13 @@
 import { checkValuesIsvalidRectangle_ } from "./checkisrectangle";
 import { getTheFirstSheetSchema_ } from "./getSchema";
 import { getTablerDataByCoorfinates_ } from "./datagetter/getvalues";
+import { getTablerFieldsComparison_ } from "./fieldscomparison/allfieldscompare";
 
 /** @typedef {import("./getSchema").SheetTableSchema} SheetTableSchema  */
 /** @typedef {import("../talbler").RangeValues} RangeValues */
 /** @typedef {import("./checkisrectangle").ValuesCheckResponse} ValuesCheckResponse */
+/** @typedef {import("./getSchema").SheetFieldSchema} SheetFieldSchema */
+/** @typedef {import("./fieldscomparison/allfieldscompare").TablerFieldsComparison} TablerFieldsComparison */
 
 /**
  * @constructor
@@ -65,5 +68,19 @@ export function TablerStore_(values) {
       self.schema.row_data_ends,
       self.schema.skipped_row_indexes
     );
+  };
+
+  /**
+   * @method
+   *
+   * @param {SheetFieldSchema[]} fieldsToCompare
+   *
+   * @returns {TablerFieldsComparison}
+   */
+  self.compareFields = function (fieldsToCompare) {
+    const schema = self.getSchema();
+    const fields = schema.fields;
+    const compare = getTablerFieldsComparison_(fieldsToCompare, fields);
+    return compare;
   };
 }

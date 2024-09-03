@@ -4655,6 +4655,120 @@ function getTablerDataByCoorfinates_(values, fields, rowDataStarts, rowDataEnds,
 
 
 
+/**
+ * @typedef {Object} TablerFieldComparison
+ * @prop {String} name
+ * @prop {Boolean} is_found
+ * @prop {BasicDataType} [base_type]
+ * @prop {BasicDataType} [compare_type]
+ * @prop {Boolean} [types_match]
+ */
+/**
+ * @param {SheetFieldSchema} fieldBase
+ * @param {SheetFieldSchema[]} fieldsToCompare
+ *
+ * @returns {TablerFieldComparison}
+ */
+function getTablerFieldComparison_(fieldBase, fieldsToCompare) {
+    var compare = fieldsToCompare.find(function (v) { return v.database_value === fieldBase.database_value; });
+    if (!compare) {
+        return {
+            name: fieldBase.database_value,
+            is_found: false,
+        };
+    }
+    var type1 = _getTablerFieldBestType_(fieldBase);
+    var type2 = _getTablerFieldBestType_(compare);
+    return {
+        name: fieldBase.database_value,
+        is_found: true,
+        base_type: type1,
+        compare_type: type2,
+        types_match: type1 === type2,
+    };
+}
+/**
+ * @param {SheetFieldSchema} field
+ *
+ * @returns {BasicDataType}
+ */
+function _getTablerFieldBestType_(field) {
+    if (field.type !== "string")
+        return field.type;
+    if (!field.string_like_type)
+        return field.type;
+    return field.string_like_type;
+}
+
+
+
+
+/**
+ * @typedef {Object} TablerFieldsComparison
+ * @prop {Boolean} names_are_same
+ * @prop {Boolean} types_are_same
+ * @prop {SheetFieldSchema[]} [not_in_old_fields]
+ * @prop {SheetFieldSchema[]} [not_in_new_fields]
+ * @prop {String[]} [not_in_old_field_names]
+ * @prop {String[]} [not_in_new_field_names]
+ * @prop {TablerFieldComparison[]} [field_types_differences]
+ */
+/**
+ * @param {SheetFieldSchema[]} fieldsNew
+ * @param {SheetFieldSchema[]} fieldsOld
+ *
+ * @returns {TablerFieldsComparison}
+ */
+function getTablerFieldsComparison_(fieldsNew, fieldsOld) {
+    var comparedKeys = {}; // to save what was compared
+    /** @type {SheetFieldSchema[]} */
+    var notInOldFields = [];
+    /** @type {SheetFieldSchema[]} */
+    var notInNewFields = [];
+    /** @type {String[]} */
+    var notInOldFieldNames = [];
+    /** @type {String[]} */
+    var notInNewFieldNames = [];
+    /** @type {TablerFieldComparison[]} */
+    var fieldTypesDifferences = [];
+    fieldsNew.forEach(function (f) {
+        comparedKeys[f.database_value] = true;
+        var comparison = getTablerFieldComparison_(f, fieldsOld);
+        if (!comparison.is_found) {
+            notInOldFields.push(f);
+            notInOldFieldNames.push(f.database_value);
+        }
+        else if (!comparison.types_match) {
+            fieldTypesDifferences.push(comparison);
+        }
+    });
+    fieldsOld.forEach(function (f) {
+        if (comparedKeys[f.database_value])
+            return;
+        var comparison = getTablerFieldComparison_(f, fieldsNew);
+        if (!comparison.is_found) {
+            notInNewFields.push(f);
+            notInNewFieldNames.push(f.database_value);
+        }
+        else if (!comparison.types_match) {
+            fieldTypesDifferences.push(comparison);
+        }
+    });
+    return {
+        names_are_same: notInNewFields.length === 0 && notInOldFields.length === 0,
+        types_are_same: fieldTypesDifferences.length === 0,
+        field_types_differences: fieldTypesDifferences,
+        not_in_new_field_names: notInNewFieldNames,
+        not_in_new_fields: notInNewFields,
+        not_in_old_field_names: notInOldFieldNames,
+        not_in_old_fields: notInOldFields,
+    };
+}
+
+
+
+
+
 
 /**
  * @constructor
@@ -4709,11 +4823,26 @@ function TablerStore_(values) {
             self.getSchema();
         return getTablerDataByCoorfinates_(self.values, self.schema.fields, self.schema.row_data_starts, self.schema.row_data_ends, self.schema.skipped_row_indexes);
     };
+    /**
+     * @method
+     *
+     * @param {SheetFieldSchema[]} fieldsToCompare
+     *
+     * @returns {TablerFieldsComparison}
+     */
+    self.compareFields = function (fieldsToCompare) {
+        var schema = self.getSchema();
+        var fields = schema.fields;
+        var compare = getTablerFieldsComparison_(fieldsToCompare, fields);
+        return compare;
+    };
 }
 
 /**
  * @typedef {Array<Array>} RangeValues
  */
+
+
 
 /**
  * @constructor
@@ -4744,6 +4873,16 @@ function Tabler_(values) {
         if (schema)
             self.setSchema(schema);
         return store.getData();
+    };
+    /**
+     * @method
+     *
+     * @param {SheetFieldSchema[]} fieldsToCompare
+     *
+     * @returns {TablerFieldsComparison}
+     */
+    self.compareFields = function (fieldsToCompare) {
+        return store.compareFields(fieldsToCompare);
     };
 }
 
