@@ -1,23 +1,13 @@
-import { Ranger_ } from "./ranger";
-import { Typer_ } from "./typer";
-import { Tabler_ } from "./talbler";
+import { testJsEngine_ } from "./Sample/code";
+import { BuildWithMe_ } from "./Sample/constructor";
 
-export function test_ranger() {
-  const ranger = new Ranger_("A1:B25");
-  const grid = ranger.grid();
-  if (!grid) {
-    console.log(ranger.validation().message);
-  } else {
-    console.log(JSON.stringify(grid, null, 2));
-  }
-
-  const typer = new Typer_("true");
-  console.log(JSON.stringify(typer.getType(), null, 2));
-
-  const t = new Tabler_([["boo"]]);
-  console.log(t.getSchema());
+export function test_enigine() {
+  const engine = new BuildWithMe_("Hello");
+  const test = engine.test();
+  console.log(JSON.stringify(test));
 }
 
+// -------------------------------------------------------------------------------------------------
 // Polifils
 if (!Array.prototype.findIndex) {
   Array.prototype.findIndex = function (predicate) {
@@ -115,3 +105,4 @@ if (!Array.prototype.find) {
     },
   });
 }
+// -------------------------------------------------------------------------------------------------
